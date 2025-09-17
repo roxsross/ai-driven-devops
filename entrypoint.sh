@@ -72,13 +72,17 @@ python3 ai-agent.py > analysis_output.txt 2>&1 || true
 HEALTH_SCORE=$(grep -o "System Health Score: [0-9.]*" analysis_output.txt | grep -o "[0-9.]*" | head -1 || echo "0")
 CRITICAL_ISSUES=$(grep -o "Critical Issues Found: [0-9]*" analysis_output.txt | grep -o "[0-9]*" | head -1 || echo "0")
 
-# Determine recommendation
-if (( $(echo "$HEALTH_SCORE >= $HEALTH_THRESHOLD" | bc -l) )) && [ "$CRITICAL_ISSUES" = "0" ]; then
+# Convert to integers for comparison (remove decimals)
+HEALTH_SCORE_INT=$(echo "$HEALTH_SCORE" | cut -d. -f1)
+HEALTH_THRESHOLD_INT=$(echo "$HEALTH_THRESHOLD" | cut -d. -f1)
+
+# Determine recommendation using integer comparison
+if [ "$HEALTH_SCORE_INT" -ge "$HEALTH_THRESHOLD_INT" ] && [ "$CRITICAL_ISSUES" = "0" ]; then
     RECOMMENDATION="deploy"
-    echo "✅ RECOMMENDATION: DEPLOY - System health is acceptable"
+    echo "✅ RECOMMENDATION: DEPLOY - System health is acceptable (Score: $HEALTH_SCORE >= $HEALTH_THRESHOLD, Critical Issues: $CRITICAL_ISSUES)"
 else
     RECOMMENDATION="block"
-    echo "❌ RECOMMENDATION: BLOCK - System health issues detected"
+    echo "❌ RECOMMENDATION: BLOCK - System health issues detected (Score: $HEALTH_SCORE < $HEALTH_THRESHOLD or Critical Issues: $CRITICAL_ISSUES > 0)"
 fi
 
 # Set GitHub Action outputs

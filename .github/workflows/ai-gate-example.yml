@@ -30,12 +30,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (optional)
+        continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: us-east-1
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
       
       - name: AI Observability Gate
         id: ai-gate
