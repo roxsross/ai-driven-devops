@@ -76,6 +76,20 @@ inputs:
     description: 'Working directory for the action'
     required: false
     default: '.'
+  
+  # CI/CD Context inputs
+  ci-pipeline-id:
+    description: 'CI Pipeline ID'
+    required: false
+    default: 'manual-execution'
+  ci-environment:
+    description: 'CI Environment'
+    required: false
+    default: 'development'
+  ci-commit-sha:
+    description: 'CI Commit SHA'
+    required: false
+    default: 'unknown'
 
 outputs:
   health-score:
@@ -121,7 +135,7 @@ runs:
     AI_OBSERVABILITY_SIMULATION: ${{ inputs.simulation-mode }}
     SAFE_ACTIONS: ${{ inputs.safe-actions }}
     
-    # CI/CD Context
-    CI_PIPELINE_ID: ${{ github.run_id }}
-    CI_ENVIRONMENT: ${{ github.ref_name }}
-    CI_COMMIT_SHA: ${{ github.sha }}
+    # CI/CD Context (passed as inputs)
+    CI_PIPELINE_ID: ${{ inputs.ci-pipeline-id }}
+    CI_ENVIRONMENT: ${{ inputs.ci-environment }}
+    CI_COMMIT_SHA: ${{ inputs.ci-commit-sha }}
