@@ -1,0 +1,91 @@
+name: AI Deployment Gate Example
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ai-check-simulation:
+    name: AI Check (Simulation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: AI Observability Check
+        uses: ./.github/actions/ai-observability
+        with:
+          simulation-mode: 'true'
+          namespace: 'demo'
+          health-threshold: '70'
+
+  ai-deployment-gate:
+    name: AI Deployment Gate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      
+      - name: AI Observability Gate
+        id: ai-gate
+        uses: ./.github/actions/ai-observability
+        with:
+          bedrock-model-id: 'amazon.nova-pro-v1:0'
+          prometheus-url: ${{ secrets.PROMETHEUS_URL }}
+          grafana-url: ${{ secrets.GRAFANA_URL }}
+          grafana-token: ${{ secrets.GRAFANA_TOKEN }}
+          namespace: 'production'
+          blocking-mode: 'true'
+          health-threshold: '85'
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+      
+      - name: Deploy if approved
+        if: steps.ai-gate.outputs.recommendation == 'deploy'
+        run: |
+          echo "✅ AI approved deployment"
+          echo "Health Score: ${{ steps.ai-gate.outputs.health-score }}"
+          # Add your deployment commands here
+          
+      - name: Block deployment
+        if: steps.ai-gate.outputs.recommendation == 'block'
+        run: |
+          echo "❌ AI blocked deployment"
+          echo "Critical Issues: ${{ steps.ai-gate.outputs.critical-issues }}"
+          exit 1
+
+  ai-check-matrix:
+    name: AI Check Matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [staging, production]
+        include:
+          - environment: staging
+            threshold: '70'
+            blocking: 'false'
+          - environment: production
+            threshold: '85'
+            blocking: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: AI Check - ${{ matrix.environment }}
+        uses: ./.github/actions/ai-observability
+        with:
+          simulation-mode: 'false'
+          namespace: ${{ matrix.environment }}
+          health-threshold: ${{ matrix.threshold }}
+          blocking-mode: ${{ matrix.blocking }}
+          bedrock-model-id: 'amazon.nova-pro-v1:0'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

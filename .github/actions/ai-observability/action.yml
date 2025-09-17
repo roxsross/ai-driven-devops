@@ -1,0 +1,127 @@
+name: 'AI-Driven Observability'
+description: 'Intelligent observability with AWS Bedrock for deployment gates and monitoring'
+author: 'roxsross'
+
+branding:
+  icon: 'brain'
+  color: 'blue'
+
+inputs:
+  # AWS Configuration
+  aws-access-key-id:
+    description: 'AWS Access Key ID (optional if using OIDC)'
+    required: false
+  aws-secret-access-key:
+    description: 'AWS Secret Access Key (optional if using OIDC)'
+    required: false
+  aws-region:
+    description: 'AWS Region for Bedrock'
+    required: false
+    default: 'us-east-1'
+  
+  # Bedrock Configuration
+  bedrock-model-id:
+    description: 'Bedrock Model ID'
+    required: false
+    default: 'amazon.nova-pro-v1:0'
+  
+  # Monitoring Configuration
+  prometheus-url:
+    description: 'Prometheus URL for metrics'
+    required: false
+  grafana-url:
+    description: 'Grafana URL for dashboards'
+    required: false
+  grafana-token:
+    description: 'Grafana API Token'
+    required: false
+  
+  # Application Configuration
+  namespace:
+    description: 'Kubernetes namespace to monitor'
+    required: false
+    default: 'default'
+  app-name:
+    description: 'Application name'
+    required: false
+  
+  # Notification Configuration
+  telegram-bot-token:
+    description: 'Telegram Bot Token for notifications'
+    required: false
+  telegram-chat-id:
+    description: 'Telegram Chat ID for notifications'
+    required: false
+  
+  # Behavior Configuration
+  simulation-mode:
+    description: 'Run in simulation mode (no real infrastructure needed)'
+    required: false
+    default: 'false'
+  blocking-mode:
+    description: 'Block deployment on critical issues'
+    required: false
+    default: 'true'
+  health-threshold:
+    description: 'Minimum health score to pass (0-100)'
+    required: false
+    default: '80'
+  
+  # Advanced Configuration
+  safe-actions:
+    description: 'Comma-separated list of safe actions'
+    required: false
+    default: 'rollout,scale,annotate'
+  working-directory:
+    description: 'Working directory for the action'
+    required: false
+    default: '.'
+
+outputs:
+  health-score:
+    description: 'System health score (0-100)'
+  critical-issues:
+    description: 'Number of critical issues found'
+  ai-insights:
+    description: 'AI-generated insights (JSON)'
+  recommendation:
+    description: 'AI recommendation (deploy/block)'
+  analysis-summary:
+    description: 'Summary of the analysis'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.simulation-mode }}
+    - ${{ inputs.blocking-mode }}
+    - ${{ inputs.health-threshold }}
+  env:
+    # AWS Configuration
+    AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key-id }}
+    AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-access-key }}
+    AWS_REGION: ${{ inputs.aws-region }}
+    BEDROCK_REGION: ${{ inputs.aws-region }}
+    BEDROCK_MODEL_ID: ${{ inputs.bedrock-model-id }}
+    
+    # Monitoring Configuration
+    PROM_URL: ${{ inputs.prometheus-url }}
+    GRAFANA_URL: ${{ inputs.grafana-url }}
+    GRAFANA_TOKEN: ${{ inputs.grafana-token }}
+    
+    # Application Configuration
+    NAMESPACE: ${{ inputs.namespace }}
+    APP_NAME: ${{ inputs.app-name }}
+    
+    # Notification Configuration
+    TELEGRAM_BOT_TOKEN: ${{ inputs.telegram-bot-token }}
+    TELEGRAM_CHAT_ID: ${{ inputs.telegram-chat-id }}
+    
+    # Behavior Configuration
+    AI_OBSERVABILITY_SIMULATION: ${{ inputs.simulation-mode }}
+    SAFE_ACTIONS: ${{ inputs.safe-actions }}
+    
+    # CI/CD Context
+    CI_PIPELINE_ID: ${{ github.run_id }}
+    CI_ENVIRONMENT: ${{ github.ref_name }}
+    CI_COMMIT_SHA: ${{ github.sha }}

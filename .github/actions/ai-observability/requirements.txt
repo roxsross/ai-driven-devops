@@ -1,0 +1,17 @@
+# AI SRE Agent Dependencies
+strands-agents>=1.0.0
+strands-agents
+python-dotenv
+requests
+psutil
+pydantic
+boto3>=1.28.0
+python-dotenv>=1.0.0
+requests>=2.32.3
+psutil>=5.9.0
+pydantic>=2.0.0
+
+# Optional dependencies for enhanced functionality
+aiohttp>=3.8.0
+asyncio-mqtt>=0.11.0
+prometheus-client>=0.17.0
