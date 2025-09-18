@@ -1,0 +1,99 @@
+name: Pull Request AI Check
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  ai-pr-check:
+    name: AI Pull Request Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          # Check out the PR head commit
+          ref: ${{ github.event.pull_request.head.sha }}
+      
+      - name: AI Observability Check
+        id: ai-check
+        uses: roxsross/ai-driven-devops@v1
+        with:
+          # PR-friendly settings
+          simulation-mode: 'true'
+          blocking-mode: 'false'  # Don't block PRs, just inform
+          health-threshold: '70'
+          
+          # PR context
+          namespace: 'pr-${{ github.event.number }}'
+          
+          # CI/CD Context
+          ci-pipeline-id: ${{ github.run_id }}
+          ci-environment: 'pull-request'
+          ci-commit-sha: ${{ github.event.pull_request.head.sha }}
+      
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const healthScore = '${{ steps.ai-check.outputs.health-score }}';
+            const criticalIssues = '${{ steps.ai-check.outputs.critical-issues }}';
+            const recommendation = '${{ steps.ai-check.outputs.recommendation }}';
+            const summary = '${{ steps.ai-check.outputs.analysis-summary }}';
+            
+            const emoji = recommendation === 'deploy' ? '✅' : '⚠️';
+            const status = recommendation === 'deploy' ? 'PASSED' : 'NEEDS ATTENTION';
+            
+            const body = `
+            ## ${emoji} AI Observability Check - ${status}
+            
+            **Health Score:** ${healthScore}/100
+            **Critical Issues:** ${criticalIssues}
+            **Recommendation:** ${recommendation.toUpperCase()}
+            
+            **Analysis Summary:**
+            ${summary}
+            
+            ${recommendation === 'deploy' 
+              ? '🎉 Your code looks good from an observability perspective!'
+              : '⚠️ Please review the issues before merging.'}
+            
+            ---
+            *AI-powered analysis by [AI-Driven Observability](https://github.com/your-org/ai-observability)*
+            `;
+            
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.data.find(comment => 
+              comment.body.includes('AI Observability Check')
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+      
+      - name: Set PR Status
+        run: |
+          echo "PR AI Check completed"
+          echo "Health Score: ${{ steps.ai-check.outputs.health-score }}"
+          echo "Recommendation: ${{ steps.ai-check.outputs.recommendation }}"

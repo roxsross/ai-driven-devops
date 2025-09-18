@@ -1,0 +1,36 @@
+name: Basic AI Observability Check
+
+# Trigger on every push and pull request
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ai-health-check:
+    name: AI Health Check (Simulation)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: AI Observability Check
+        uses: roxsross/ai-driven-devops@v1
+        with:
+          # Basic simulation mode - no infrastructure needed
+          simulation-mode: 'true'
+          namespace: 'my-app'
+          health-threshold: '70'
+          blocking-mode: 'false'  # Don't block on issues (for testing)
+          
+          # CI/CD Context (recommended)
+          ci-pipeline-id: ${{ github.run_id }}
+          ci-environment: ${{ github.ref_name }}
+          ci-commit-sha: ${{ github.sha }}
+      
+      - name: Show Results
+        run: |
+          echo "Health Score: ${{ steps.ai-check.outputs.health-score }}"
+          echo "Critical Issues: ${{ steps.ai-check.outputs.critical-issues }}"
+          echo "Recommendation: ${{ steps.ai-check.outputs.recommendation }}"

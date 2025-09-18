@@ -1,0 +1,75 @@
+name: Multi-Environment AI Observability
+
+on:
+  push:
+    branches: [ main, develop, staging ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ai-check-matrix:
+    name: AI Check - ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [development, staging, production]
+        include:
+          # Development: Lenient settings
+          - environment: development
+            threshold: '60'
+            blocking: 'false'
+            simulation: 'true'
+          
+          # Staging: Moderate settings
+          - environment: staging
+            threshold: '75'
+            blocking: 'false'
+            simulation: 'false'
+          
+          # Production: Strict settings
+          - environment: production
+            threshold: '90'
+            blocking: 'true'
+            simulation: 'false'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        if: matrix.simulation == 'false'
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: AI Observability Check - ${{ matrix.environment }}
+        id: ai-check
+        uses: roxsross/ai-driven-devops@v1
+        with:
+          simulation-mode: ${{ matrix.simulation }}
+          blocking-mode: ${{ matrix.blocking }}
+          health-threshold: ${{ matrix.threshold }}
+          
+          # Environment-specific configuration
+          namespace: ${{ matrix.environment }}
+          bedrock-model-id: 'amazon.nova-pro-v1:0'
+          
+          # Monitoring (environment-specific secrets)
+          prometheus-url: ${{ secrets[format('PROMETHEUS_URL_{0}', upper(matrix.environment))] }}
+          grafana-url: ${{ secrets[format('GRAFANA_URL_{0}', upper(matrix.environment))] }}
+          
+          # CI/CD Context
+          ci-pipeline-id: ${{ github.run_id }}
+          ci-environment: ${{ matrix.environment }}
+          ci-commit-sha: ${{ github.sha }}
+      
+      - name: Environment Summary
+        run: |
+          echo "🌍 Environment: ${{ matrix.environment }}"
+          echo "📊 Health Score: ${{ steps.ai-check.outputs.health-score }}/100"
+          echo "🚨 Critical Issues: ${{ steps.ai-check.outputs.critical-issues }}"
+          echo "🤖 AI Recommendation: ${{ steps.ai-check.outputs.recommendation }}"
+          echo "📋 Summary: ${{ steps.ai-check.outputs.analysis-summary }}"

@@ -1,0 +1,73 @@
+name: AI Deployment Gate
+
+# Only run on main branch pushes (production deployments)
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  ai-deployment-gate:
+    name: AI Deployment Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: AI Observability Gate
+        id: ai-gate
+        uses: roxsross/ai-driven-devops@v1
+        with:
+          # Production settings
+          simulation-mode: 'false'
+          blocking-mode: 'true'
+          health-threshold: '85'
+          
+          # AWS Bedrock Configuration
+          bedrock-model-id: 'amazon.nova-pro-v1:0'
+          
+          # Monitoring Integration
+          prometheus-url: ${{ secrets.PROMETHEUS_URL }}
+          grafana-url: ${{ secrets.GRAFANA_URL }}
+          grafana-token: ${{ secrets.GRAFANA_TOKEN }}
+          
+          # Application Configuration
+          namespace: 'production'
+          app-name: 'my-application'
+          
+          # Notifications
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          
+          # CI/CD Context
+          ci-pipeline-id: ${{ github.run_id }}
+          ci-environment: ${{ github.ref_name }}
+          ci-commit-sha: ${{ github.sha }}
+      
+      - name: Deploy to Production
+        if: steps.ai-gate.outputs.recommendation == 'deploy'
+        run: |
+          echo "✅ AI approved deployment!"
+          echo "Health Score: ${{ steps.ai-gate.outputs.health-score }}/100"
+          echo "Critical Issues: ${{ steps.ai-gate.outputs.critical-issues }}"
+          
+          # Add your deployment commands here
+          # kubectl apply -f k8s/
+          # helm upgrade my-app ./chart
+          # docker deploy...
+          
+      - name: Block Deployment
+        if: steps.ai-gate.outputs.recommendation == 'block'
+        run: |
+          echo "❌ AI blocked deployment due to health issues"
+          echo "Health Score: ${{ steps.ai-gate.outputs.health-score }}/100"
+          echo "Critical Issues: ${{ steps.ai-gate.outputs.critical-issues }}"
+          echo "Analysis: ${{ steps.ai-gate.outputs.analysis-summary }}"
+          exit 1

@@ -7,7 +7,7 @@ Transform your CI/CD with intelligent observability powered by AWS Bedrock and a
 ### Basic Usage (Simulation Mode)
 ```yaml
 - name: AI Observability Check
-  uses: your-org/ai-observability@v1
+  uses: roxsross/ai-driven-devops@v1
   with:
     simulation-mode: 'true'
     namespace: 'my-app'
@@ -17,7 +17,7 @@ Transform your CI/CD with intelligent observability powered by AWS Bedrock and a
 ### Production Usage
 ```yaml
 - name: AI Deployment Gate
-  uses: your-org/ai-observability@v1
+  uses: roxsross/ai-driven-devops@v1
   with:
     bedrock-model-id: 'amazon.nova-pro-v1:0'
     prometheus-url: ${{ secrets.PROMETHEUS_URL }}
