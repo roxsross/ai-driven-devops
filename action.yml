@@ -45,6 +45,20 @@ inputs:
     description: 'Application name'
     required: false
   
+  # Kubernetes Configuration
+  cluster-name:
+    description: 'Kubernetes cluster name (e.g., EKS cluster name)'
+    required: false
+  kubeconfig-data:
+    description: 'Base64 encoded kubeconfig data'
+    required: false
+  cluster-url:
+    description: 'Kubernetes cluster URL'
+    required: false
+  cluster-token:
+    description: 'Kubernetes service account token'
+    required: false
+  
   # Notification Configuration
   telegram-bot-token:
     description: 'Telegram Bot Token for notifications'
@@ -126,6 +140,13 @@ runs:
     # Application Configuration
     NAMESPACE: ${{ inputs.namespace }}
     APP_NAME: ${{ inputs.app-name }}
+    
+    # Kubernetes Configuration
+    EKS_CLUSTER_NAME: ${{ inputs.cluster-name }}
+    CLUSTER_NAME: ${{ inputs.cluster-name }}
+    KUBECONFIG_DATA: ${{ inputs.kubeconfig-data }}
+    CLUSTER_URL: ${{ inputs.cluster-url }}
+    CLUSTER_TOKEN: ${{ inputs.cluster-token }}
     
     # Notification Configuration
     TELEGRAM_BOT_TOKEN: ${{ inputs.telegram-bot-token }}

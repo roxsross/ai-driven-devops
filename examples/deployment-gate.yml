@@ -40,7 +40,13 @@ jobs:
           
           # Application Configuration
           namespace: 'production'
-          app-name: 'my-application'
+          app-name: 'blackjack-app'  # Should match your K8s deployment name
+          
+          # Kubernetes Configuration
+          cluster-name: 'automode-cluster'  # EKS cluster name
+          # kubeconfig-data: ${{ secrets.KUBECONFIG }}  # Base64 encoded kubeconfig (optional)
+          # cluster-url: ${{ secrets.K8S_CLUSTER_URL }}  # https://your-cluster.com (optional)
+          # cluster-token: ${{ secrets.K8S_TOKEN }}  # Service account token (optional)
           
           # Notifications
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
