@@ -1,0 +1,204 @@
+name: Auto Post-Deployment Validation
+
+# Triggers automatically after successful deployments
+on:
+  workflow_run:
+    workflows: ["Deploy to Production", "Deploy to Staging"]
+    types: [completed]
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  auto-validation:
+    name: Auto Deployment Validation
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Determine Environment
+        id: env-detection
+        run: |
+          # Detect environment based on branch and workflow
+          if [[ "${{ github.event.workflow_run.head_branch }}" == "main" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "threshold=90" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.workflow_run.head_branch }}" == "develop" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "threshold=85" >> $GITHUB_OUTPUT
+          else
+            echo "environment=development" >> $GITHUB_OUTPUT
+            echo "threshold=80" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "🎯 Detected environment: $(echo $environment)"
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Wait for Deployment Stabilization
+        run: |
+          echo "⏳ Waiting for deployment to stabilize..."
+          echo "🎮 Blackjack game pods starting up..."
+          sleep 180  # Wait 3 minutes for game to be ready
+      
+      - name: AI Post-Deployment Analysis
+        id: validation
+        uses: roxsross/ai-driven-devops@main
+        with:
+          simulation-mode: 'false'
+          blocking-mode: 'false'
+          health-threshold: ${{ steps.env-detection.outputs.threshold }}
+          
+          # AWS Bedrock Configuration
+          bedrock-model-id: ${{ secrets.BEDROCK_MODEL_ID }}
+          
+          # Blackjack Application Configuration
+          namespace: 'blackjack-demo'
+          app-name: 'blackjack-app'
+          cluster-name: 'automode-cluster'
+          
+          # Monitoring Integration
+          prometheus-url: ${{ secrets.PROM_URL }}
+          grafana-url: ${{ secrets.GRAFANA_URL }}
+          grafana-token: ${{ secrets.GRAFANA_TOKEN }}
+          
+          # Notifications
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          
+          # CI/CD Context
+          ci-pipeline-id: ${{ github.run_id }}
+          ci-environment: ${{ steps.env-detection.outputs.environment }}
+          ci-commit-sha: ${{ github.event.workflow_run.head_sha }}
+      
+      - name: Game-Specific Health Checks
+        id: game-checks
+        run: |
+          echo "🎮 Running Blackjack-specific health checks..."
+          
+          # Check if game endpoints are responding
+          namespace="blackjack-demo"
+          
+          # Get game service status
+          kubectl get svc -n $namespace
+          
+          # Check game pods specifically
+          game_pods=$(kubectl get pods -n $namespace -l app=blackjack-app --no-headers | wc -l)
+          ready_pods=$(kubectl get pods -n $namespace -l app=blackjack-app --field-selector=status.phase=Running --no-headers | wc -l)
+          
+          echo "game-pods-total=$game_pods" >> $GITHUB_OUTPUT
+          echo "game-pods-ready=$ready_pods" >> $GITHUB_OUTPUT
+          
+          # Calculate game readiness percentage
+          if [ $game_pods -gt 0 ]; then
+            readiness=$(( ready_pods * 100 / game_pods ))
+            echo "game-readiness=$readiness" >> $GITHUB_OUTPUT
+          else
+            echo "game-readiness=0" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "🎯 Game Readiness: $readiness% ($ready_pods/$game_pods pods ready)"
+      
+      - name: Extended Game Monitoring
+        if: steps.validation.outputs.recommendation == 'deploy'
+        run: |
+          echo "🎮 Starting extended game monitoring..."
+          
+          # Monitor game for 5 minutes
+          for i in {1..5}; do
+            echo "⏰ Monitoring minute $i/5..."
+            
+            # Check game pod status
+            kubectl get pods -n blackjack-demo -l app=blackjack-app
+            
+            # Check for any game-related events
+            kubectl get events -n blackjack-demo --field-selector type=Warning --sort-by=.lastTimestamp | tail -5
+            
+            sleep 60
+          done
+          
+          echo "✅ Extended game monitoring completed"
+      
+      - name: Generate Game Deployment Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const healthScore = '${{ steps.validation.outputs.health-score }}';
+            const recommendation = '${{ steps.validation.outputs.recommendation }}';
+            const environment = '${{ steps.env-detection.outputs.environment }}';
+            const threshold = '${{ steps.env-detection.outputs.threshold }}';
+            const gamePods = '${{ steps.game-checks.outputs.game-pods-total }}';
+            const readyPods = '${{ steps.game-checks.outputs.game-pods-ready }}';
+            const gameReadiness = '${{ steps.game-checks.outputs.game-readiness }}';
+            
+            const isHealthy = recommendation === 'deploy' && parseInt(healthScore) >= parseInt(threshold);
+            const emoji = isHealthy ? '✅' : '⚠️';
+            const status = isHealthy ? 'GAME READY' : 'GAME ISSUES DETECTED';
+            
+            const body = `## ${emoji} Auto Post-Deployment: ${status}
+            
+            **🎮 Blackjack Game Deployment Validation**
+            
+            ### 📊 Game Health Metrics
+            - **Overall Health:** ${healthScore}/100 (threshold: ${threshold})
+            - **Game Pods:** ${readyPods}/${gamePods} ready (${gameReadiness}%)
+            - **Environment:** ${environment}
+            - **Recommendation:** ${recommendation.toUpperCase()}
+            
+            ### 🎯 Game Performance
+            ${isHealthy ? 
+              '✅ **Player Experience:** Ready for gaming\n✅ **Game Stability:** All systems operational\n✅ **Response Times:** Optimal for gameplay\n✅ **Session Handling:** Stable' : 
+              '⚠️ **Player Impact:** Game may be affected\n🎮 **Stability Issues:** Detected problems\n📊 **Performance:** Below optimal\n🔧 **Action Required:** Review and fix'}
+            
+            ### 🚀 Deployment Details
+            - **Triggered by:** ${{ github.event.workflow_run.name }}
+            - **Branch:** ${{ github.event.workflow_run.head_branch }}
+            - **Commit:** ${{ github.event.workflow_run.head_sha }}
+            - **Validation Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            
+            ### 📈 Monitoring Links
+            - [Game Dashboard](${process.env.GRAFANA_URL || 'Configure GRAFANA_URL'})
+            - [Player Metrics](${process.env.PROM_URL || 'Configure PROM_URL'})
+            
+            ### 🔄 Recommended Actions
+            ${isHealthy ? 
+              '- ✅ Game is ready for players\n- 📊 Monitor player activity\n- 🎮 Normal operations can continue' : 
+              '- 🔍 Investigate game issues immediately\n- 📊 Review game logs and metrics\n- 🎮 Consider rollback if critical\n- 👥 Notify game team'}
+            
+            ---
+            *🤖 Auto-generated Post-Deployment Validation | Workflow: ${{ github.event.workflow_run.name }}*`;
+            
+            // Create issue for tracking
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `${emoji} Auto Validation: Blackjack ${environment} - ${status}`,
+              body: body,
+              labels: ['auto-validation', 'blackjack-game', environment, isHealthy ? 'healthy' : 'needs-attention']
+            });
+      
+      - name: Rollback Decision
+        if: steps.validation.outputs.recommendation != 'deploy'
+        run: |
+          echo "🚨 CRITICAL: Game deployment validation failed!"
+          echo "Health Score: ${{ steps.validation.outputs.health-score }}"
+          echo "Threshold: ${{ steps.env-detection.outputs.threshold }}"
+          echo "Game Readiness: ${{ steps.game-checks.outputs.game-readiness }}%"
+          
+          echo "🔄 Consider automatic rollback for production environment"
+          
+          if [ "${{ steps.env-detection.outputs.environment }}" = "production" ]; then
+            echo "⚠️ PRODUCTION DEPLOYMENT FAILED VALIDATION"
+            echo "Manual intervention required - check game status immediately"
+            exit 1
+          fi

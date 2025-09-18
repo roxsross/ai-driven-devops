@@ -1,0 +1,198 @@
+name: Post-Deployment Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to validate'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+      deployment-id:
+        description: 'Deployment ID to validate'
+        required: false
+        type: string
+      validation-duration:
+        description: 'Validation duration (minutes)'
+        required: false
+        default: '10'
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  post-deployment-validation:
+    name: AI Post-Deployment Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Wait for Deployment Stabilization
+        run: |
+          echo "⏳ Waiting for deployment to stabilize..."
+          sleep 120  # Wait 2 minutes for pods to start
+      
+      - name: AI Post-Deployment Health Check
+        id: post-deploy-check
+        uses: roxsross/ai-driven-devops@main
+        with:
+          # Post-deployment settings
+          simulation-mode: 'false'  # Real analysis after deployment
+          blocking-mode: 'false'    # Don't block, just report
+          health-threshold: '85'    # Higher threshold for production
+          
+          # AWS Bedrock Configuration
+          bedrock-model-id: ${{ secrets.BEDROCK_MODEL_ID }}
+          
+          # Application Configuration
+          namespace: 'blackjack-demo'
+          app-name: 'blackjack-app'
+          cluster-name: 'automode-cluster'
+          
+          # Monitoring Integration
+          prometheus-url: ${{ secrets.PROM_URL }}
+          grafana-url: ${{ secrets.GRAFANA_URL }}
+          grafana-token: ${{ secrets.GRAFANA_TOKEN }}
+          
+          # Notifications
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          
+          # CI/CD Context
+          ci-pipeline-id: ${{ github.run_id }}
+          ci-environment: ${{ inputs.environment }}
+          ci-commit-sha: ${{ github.sha }}
+      
+      - name: Extended Validation Period
+        if: steps.post-deploy-check.outputs.recommendation == 'deploy'
+        run: |
+          echo "✅ Initial validation passed - starting extended monitoring..."
+          duration=${{ inputs.validation-duration }}
+          echo "🔍 Monitoring for ${duration} minutes..."
+          
+          # Monitor for specified duration
+          end_time=$(($(date +%s) + ${duration} * 60))
+          
+          while [ $(date +%s) -lt $end_time ]; do
+            echo "⏰ Monitoring... $(date)"
+            sleep 60  # Check every minute
+          done
+          
+          echo "✅ Extended validation period completed"
+      
+      - name: Final AI Validation
+        id: final-validation
+        uses: roxsross/ai-driven-devops@main
+        with:
+          simulation-mode: 'false'
+          blocking-mode: 'false'
+          health-threshold: '85'
+          
+          # Same configuration as before
+          bedrock-model-id: ${{ secrets.BEDROCK_MODEL_ID }}
+          namespace: 'blackjack-demo'
+          app-name: 'blackjack-app'
+          cluster-name: 'automode-cluster'
+          prometheus-url: ${{ secrets.PROM_URL }}
+          grafana-url: ${{ secrets.GRAFANA_URL }}
+          grafana-token: ${{ secrets.GRAFANA_TOKEN }}
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          
+          ci-pipeline-id: ${{ github.run_id }}
+          ci-environment: ${{ inputs.environment }}
+          ci-commit-sha: ${{ github.sha }}
+      
+      - name: Create Deployment Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const initialHealth = '${{ steps.post-deploy-check.outputs.health-score }}';
+            const finalHealth = '${{ steps.final-validation.outputs.health-score }}';
+            const initialRecommendation = '${{ steps.post-deploy-check.outputs.recommendation }}';
+            const finalRecommendation = '${{ steps.final-validation.outputs.recommendation }}';
+            const environment = '${{ inputs.environment }}';
+            const deploymentId = '${{ inputs.deployment-id }}' || 'auto-generated';
+            const validationDuration = '${{ inputs.validation-duration }}';
+            
+            // Determine overall status
+            const isHealthy = finalRecommendation === 'deploy' && parseInt(finalHealth) >= 85;
+            const emoji = isHealthy ? '✅' : '⚠️';
+            const status = isHealthy ? 'DEPLOYMENT SUCCESSFUL' : 'DEPLOYMENT NEEDS ATTENTION';
+            
+            // Calculate health trend
+            const healthTrend = parseInt(finalHealth) - parseInt(initialHealth);
+            const trendEmoji = healthTrend > 0 ? '📈' : healthTrend < 0 ? '📉' : '➡️';
+            
+            const body = `## ${emoji} Post-Deployment Validation - ${status}
+            
+            **🎮 Blackjack Game Deployment Report**
+            
+            ### 📊 Health Metrics
+            - **Initial Health:** ${initialHealth}/100
+            - **Final Health:** ${finalHealth}/100 ${trendEmoji}
+            - **Health Trend:** ${healthTrend > 0 ? '+' : ''}${healthTrend} points
+            - **Validation Duration:** ${validationDuration} minutes
+            
+            ### 🎯 Game Performance Analysis
+            ${isHealthy ? 
+              '✅ **Player Experience:** Optimal\n✅ **Game Stability:** Excellent\n✅ **Response Times:** Within SLA\n✅ **Memory Usage:** Stable' : 
+              '⚠️ **Issues Detected:** Performance degradation\n🎮 **Player Impact:** Potential issues\n📊 **Metrics:** Review required'}
+            
+            ### 🚀 Deployment Status
+            - **Environment:** ${environment}
+            - **Deployment ID:** ${deploymentId}
+            - **Initial Check:** ${initialRecommendation.toUpperCase()}
+            - **Final Status:** ${finalRecommendation.toUpperCase()}
+            
+            ### 📈 Monitoring Dashboard
+            - [Real-time Game Metrics](${process.env.GRAFANA_URL || 'Configure GRAFANA_URL'})
+            - [Player Analytics](${process.env.PROM_URL || 'Configure PROM_URL'})
+            
+            ### 🔄 Next Steps
+            ${isHealthy ? 
+              '- ✅ Deployment validated successfully\n- 📊 Continue normal monitoring\n- 🎮 Game ready for players' : 
+              '- 🔍 Investigate performance issues\n- 📊 Review metrics and logs\n- 🎮 Consider rollback if player experience affected'}
+            
+            ---
+            *🤖 Generated by AI Post-Deployment Validation | Run: ${{ github.run_id }} | Duration: ${validationDuration}min*`;
+            
+            // Create issue for tracking
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `${emoji} Post-Deployment Validation: ${environment} - ${status}`,
+              body: body,
+              labels: ['deployment', 'validation', environment, isHealthy ? 'success' : 'needs-attention']
+            });
+      
+      - name: Set Deployment Status
+        run: |
+          echo "🎮 Blackjack Post-Deployment Validation completed"
+          echo "Initial Health: ${{ steps.post-deploy-check.outputs.health-score }}"
+          echo "Final Health: ${{ steps.final-validation.outputs.health-score }}"
+          echo "Status: ${{ steps.final-validation.outputs.recommendation }}"
+          
+          # Set exit code based on final validation
+          if [ "${{ steps.final-validation.outputs.recommendation }}" = "deploy" ] && [ "${{ steps.final-validation.outputs.health-score }}" -ge "85" ]; then
+            echo "✅ Deployment validation PASSED"
+            exit 0
+          else
+            echo "⚠️ Deployment validation FAILED - consider rollback"
+            exit 1
+          fi
