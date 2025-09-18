@@ -463,7 +463,6 @@ def send_cicd_notification(message: str, severity: str = "info", include_context
         # Add quick actions
         notification += "*Quick Actions:*\n"
         notification += f"• [View Grafana]({GRAFANA_URL})\n"
-        notification += f"• [Check Prometheus]({PROM_URL})\n"
         notification += "• Run: `kubectl get pods -n " + NAMESPACE + "`"
         
         # Send to Telegram
