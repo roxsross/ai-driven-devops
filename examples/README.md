@@ -79,6 +79,16 @@ TELEGRAM_CHAT_ID=your_chat_id
     health-threshold: '70'
 ```
 
+### Option 2: Published Action (Main Branch)
+```yaml
+- name: AI Observability Check
+  uses: roxsross/ai-driven-devops@main  # ✅ Uses main branch (latest)
+  with:
+    simulation-mode: 'true'
+    namespace: 'my-app'
+    health-threshold: '70'
+```
+
 ### Production Usage
 ```yaml
 - name: AI Deployment Gate

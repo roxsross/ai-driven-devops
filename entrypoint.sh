@@ -66,7 +66,7 @@ if [ "$BLOCKING_MODE" = "true" ]; then
 fi
 
 # Run analysis and capture results
-python3 ai-agent.py > analysis_output.txt 2>&1 || true
+python3 /app/ai-agent.py > analysis_output.txt 2>&1 || true
 
 # Extract metrics from output
 HEALTH_SCORE=$(grep -o "System Health Score: [0-9.]*" analysis_output.txt | grep -o "[0-9.]*" | head -1 || echo "0")
@@ -75,6 +75,11 @@ CRITICAL_ISSUES=$(grep -o "Critical Issues Found: [0-9]*" analysis_output.txt | 
 # Convert to integers for comparison (remove decimals)
 HEALTH_SCORE_INT=$(echo "$HEALTH_SCORE" | cut -d. -f1)
 HEALTH_THRESHOLD_INT=$(echo "$HEALTH_THRESHOLD" | cut -d. -f1)
+
+# Handle empty values
+HEALTH_SCORE_INT=${HEALTH_SCORE_INT:-0}
+HEALTH_THRESHOLD_INT=${HEALTH_THRESHOLD_INT:-70}
+CRITICAL_ISSUES=${CRITICAL_ISSUES:-0}
 
 # Determine recommendation using integer comparison
 if [ "$HEALTH_SCORE_INT" -ge "$HEALTH_THRESHOLD_INT" ] && [ "$CRITICAL_ISSUES" = "0" ]; then

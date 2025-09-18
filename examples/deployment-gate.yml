@@ -23,7 +23,7 @@ jobs:
       
       - name: AI Observability Gate
         id: ai-gate
-        uses: roxsross/ai-driven-devops@v1
+        uses: roxsross/ai-driven-devops@main
         with:
           # Production settings
           simulation-mode: 'false'
